@@ -4,6 +4,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 import json
 
 from services.apify_service import (
@@ -201,6 +204,88 @@ def deduplicate(posts):
 
     return unique
 
+class SimilarityEngine:
+    """Menghitung similarity menggunakan embedding dengan fallback TF-IDF."""
+
+    def __init__(self):
+        self.engine_name = "tfidf-fallback"
+        self.model = None
+        self._load_embedding_model()
+
+    def _load_embedding_model(self):
+        try:
+            from sentence_transformers import SentenceTransformer
+
+            self.model = SentenceTransformer(EMBEDDING_MODEL)
+            self.engine_name = (
+                f"sentence-transformers:{EMBEDDING_MODEL}"
+            )
+            print("[SIMILARITY] Engine:", self.engine_name)
+
+        except Exception as exc:
+            self.model = None
+            self.engine_name = "tfidf-fallback"
+            print("[SIMILARITY] Embedding tidak tersedia:", exc)
+            print("[SIMILARITY] Menggunakan TF-IDF.")
+
+    @staticmethod
+    def _tfidf_scores(query, texts):
+        if not texts:
+            return []
+
+        try:
+            vectorizer = TfidfVectorizer(
+                lowercase=True,
+                strip_accents="unicode",
+                ngram_range=(1, 2),
+                sublinear_tf=True,
+                token_pattern=r"(?u)\b\w+\b",
+            )
+
+            matrix = vectorizer.fit_transform([query] + texts)
+
+            scores = cosine_similarity(
+                matrix[0:1],
+                matrix[1:],
+            ).flatten()
+
+            return [float(score) for score in scores]
+
+        except ValueError:
+            return [0.0] * len(texts)
+
+    def similarity_scores(self, query, texts):
+        query = str(query or "").strip()
+        texts = [str(text or "").strip() for text in texts]
+
+        if not query or not texts:
+            return [0.0] * len(texts)
+
+        if self.model is not None:
+            try:
+                vectors = self.model.encode(
+                    [query] + texts,
+                    normalize_embeddings=True,
+                    convert_to_numpy=True,
+                )
+
+                scores = vectors[1:] @ vectors[0]
+
+                return [
+                    float(max(0.0, min(1.0, score)))
+                    for score in scores
+                ]
+
+            except Exception as exc:
+                print("[SIMILARITY] Embedding gagal:", exc)
+                self.model = None
+                self.engine_name = "tfidf-fallback"
+
+        return self._tfidf_scores(query, texts)
+
+
+SIMILARITY = SimilarityEngine()
+
 def calculate_similarity(query, posts):
     if not posts:
         return []
@@ -210,62 +295,38 @@ def calculate_similarity(query, posts):
         for post in posts
     ]
 
-    # Query ditempatkan pada indeks pertama
-    documents = [query.strip()] + texts
-
-    vectorizer = TfidfVectorizer(
-        lowercase=True,
-        strip_accents="unicode",
-        ngram_range=(1, 2),
-        sublinear_tf=True,
-        token_pattern=r"(?u)\b\w+\b",
-    )
-
-    try:
-        tfidf_matrix = vectorizer.fit_transform(documents)
-    except ValueError:
-        # Misalnya seluruh teks kosong atau tidak memiliki
-        # token yang dapat diproses oleh vectorizer.
-        for post in posts:
-            post["similarity"] = 0.0
-        return posts
-
-    # Baris pertama adalah query, sisanya adalah postingan
-    scores = cosine_similarity(
-        tfidf_matrix[0:1],
-        tfidf_matrix[1:]
-    ).flatten()
+    scores = SIMILARITY.similarity_scores(query, texts)
 
     print("\n=== DEBUG CALCULATE SIMILARITY ===")
-    print("QUERY ASLI:", repr(query))
+    print("QUERY:", repr(query))
+    print("ENGINE:", SIMILARITY.engine_name)
     print("JUMLAH POST:", len(posts))
-    print("FITUR QUERY:", vectorizer.get_feature_names_out()[
-        tfidf_matrix[0].toarray().flatten().nonzero()[0]
-    ][:30])
 
-    for i, post in enumerate(posts[:5]):
+    for i, (post, score) in enumerate(
+        zip(posts[:5], scores[:5]),
+        start=1,
+    ):
         print(
-            f"[POST {i + 1}]",
+            f"[POST {i}]",
             post.get("platform"),
             repr(str(post.get("text") or "")[:150]),
             "SIMILARITY:",
-            round(float(scores[i]), 4)
+            round(score, 4),
         )
 
     for post, score in zip(posts, scores):
-        post["similarity"] = round(float(score), 4)
+        post["similarity"] = round(score, 4)
 
-    # Urutkan skor tertinggi ke terendah
     posts.sort(
         key=lambda post: post["similarity"],
-        reverse=True
+        reverse=True,
     )
 
     return posts
 
 
-def build_similarity_edges(posts, threshold=0.5):
-    """Membentuk similarity edge X -> Threads."""
+def build_similarity_edges(posts, threshold=0.25):
+    """Membentuk similarity edge lintas platform."""
 
     valid_posts = [
         post for post in posts
@@ -278,16 +339,17 @@ def build_similarity_edges(posts, threshold=0.5):
     ]
 
     x_posts = [
-        p for p in valid_posts
-        if str(p.get("platform") or "").strip().lower() == "x"
+        post for post in valid_posts
+        if str(post.get("platform") or "").strip().lower() == "x"
     ]
 
     threads_posts = [
-        p for p in valid_posts
-        if str(p.get("platform") or "").strip().lower() == "threads"
+        post for post in valid_posts
+        if str(post.get("platform") or "").strip().lower() == "threads"
     ]
 
     print("\n=== DEBUG SIMILARITY GRAPH ===")
+    print("ENGINE:", SIMILARITY.engine_name)
     print("Postingan X:", len(x_posts))
     print("Postingan Threads:", len(threads_posts))
     print("Ambang similarity:", threshold)
@@ -296,34 +358,27 @@ def build_similarity_edges(posts, threshold=0.5):
         print("Edge tidak dibuat: salah satu platform kosong.")
         return []
 
-    all_posts = x_posts + threads_posts
-    texts = [str(p["text"]).strip() for p in all_posts]
-
-    vectorizer = TfidfVectorizer(
-        lowercase=True,
-        strip_accents="unicode",
-        ngram_range=(1, 2),
-        sublinear_tf=True,
-        token_pattern=r"(?u)\b\w+\b",
-    )
-
-    try:
-        matrix = vectorizer.fit_transform(texts)
-    except ValueError as exc:
-        print("Gagal membentuk TF-IDF:", exc)
-        return []
-
-    similarity_matrix = cosine_similarity(matrix)
-    x_count = len(x_posts)
     edges = []
-    scores = []
+    pair_scores = []
 
-    for i, x_post in enumerate(x_posts):
-        for j, threads_post in enumerate(threads_posts):
-            score = float(similarity_matrix[i, x_count + j])
-            scores.append((score, x_post, threads_post))
+    threads_texts = [
+        str(post.get("text") or "").strip()
+        for post in threads_posts
+    ]
+
+    for x_post in x_posts:
+        x_text = str(x_post.get("text") or "").strip()
+
+        scores = SIMILARITY.similarity_scores(
+            x_text,
+            threads_texts,
+        )
+
+        for threads_post, score in zip(threads_posts, scores):
+            pair_scores.append((score, x_post, threads_post))
 
             if score >= threshold:
+                # Edge X -> Threads
                 edges.append({
                     "source": x_post["node_id"],
                     "target": threads_post["node_id"],
@@ -331,16 +386,24 @@ def build_similarity_edges(posts, threshold=0.5):
                     "weight": round(score, 4),
                 })
 
-    scores.sort(key=lambda item: item[0], reverse=True)
+                # Edge Threads -> X
+                edges.append({
+                    "source": threads_post["node_id"],
+                    "target": x_post["node_id"],
+                    "type": "similarity",
+                    "weight": round(score, 4),
+                })
 
-    print("Jumlah pasangan yang dibandingkan:", len(scores))
+    pair_scores.sort(key=lambda item: item[0], reverse=True)
+
+    print("Jumlah pasangan dibandingkan:", len(pair_scores))
     print("Similarity edges:", len(edges))
 
-    print("\n10 pasangan dengan similarity tertinggi:")
-    for score, x_post, threads_post in scores[:10]:
+    print("\n10 pasangan similarity tertinggi:")
+    for score, x_post, threads_post in pair_scores[:10]:
         print(f"\nSimilarity: {score:.4f}")
-        print("X:", str(x_post.get("text", ""))[:200])
-        print("Threads:", str(threads_post.get("text", ""))[:200])
+        print("X:", str(x_post.get("text") or "")[:200])
+        print("Threads:", str(threads_post.get("text") or "")[:200])
 
     return edges
 
@@ -702,7 +765,7 @@ def search_social_media(query):
     # 2. Buat similarity edge lintas platform.
     similarity_edges = build_similarity_edges(
         relevant_posts,
-        threshold=0.5,
+        threshold=0.25,
     )
 
     # 3. Nonaktifkan reply edge child -> parent.
