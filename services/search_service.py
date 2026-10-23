@@ -139,9 +139,14 @@ def normalize_post(item, platform, query):
     }
 
 
-def build_x_input(query):
-    # Mengikuti nama field dari JSON actor X yang diberikan.
-    filters = {
+def build_x_input(query, keywords):
+    search_terms = list(dict.fromkeys(
+        keyword.strip()
+        for keyword in keywords
+        if isinstance(keyword, str) and keyword.strip()
+    ))
+
+    return {
         "filter:blue_verified": False,
         "filter:consumer_video": False,
         "filter:has_engagement": False,
@@ -164,11 +169,16 @@ def build_x_input(query):
         "from": "",
         "include:nativeretweets": False,
         "lang": "in",
-        "searchTerms": [query],
-        "tweetIDs": [],
+        "maxItems": MAX_POSTS,
+
+        # List string: keyword expansion berlaku untuk X.
+        "searchTerms": search_terms,
+
+        # Wajib satu string, bukan list.
         "twitterContent": query,
+
+        "tweetIDs": [],
     }
-    return filters
 
 def build_threads_input(keywords):
     return {
@@ -633,12 +643,12 @@ def search_social_media(query):
     if not query:
         raise ValueError("Kalimat pencarian wajib diisi.")
 
-    threads_keywords = expand_threads_keywords(query)
+    expanded_keywords = expand_threads_keywords(query)
 
-    x_input = build_x_input(query)
-    threads_input = build_threads_input(threads_keywords)
+    x_input = build_x_input(query, expanded_keywords)
+    threads_input = build_threads_input(expanded_keywords)
 
-    print("[THREADS] KEYWORDS:", repr(threads_keywords))
+    print("[THREADS] KEYWORDS:", repr(expanded_keywords))
     print("[THREADS] INPUT:", threads_input)
 
     # Kedua actor berjalan secara paralel.
@@ -821,14 +831,14 @@ def search_social_media(query):
         "x_count": len(x_raw),
         "threads_count": len(threads_raw),
         "saved_count": len(relevant_posts),
-        "threads_keywords": threads_keywords,
+        "threads_keywords": expanded_keywords,
     })
     write_json(HISTORY_FILE, history_data)
 
     return {
         "success": True,
         "query": query,
-        "threads_keywords": threads_keywords,
+        "threads_keywords": expanded_keywords,
         "x_count": len(x_raw),
         "threads_count": len(threads_raw),
         "saved_count": len(relevant_posts),
