@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0e1a" />
+  <title>Sistem Pencarian Isu Multi-Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="static/css/style.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">⌘</span><span>Isu<span>Lens</span></span></div>
+    <div class="topbar-note"><span class="status-dot"></span> Sistem pencarian aktif</div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">SISTEM PENCARIAN ISU MEDIA SOSIAL MULTI-PLATFORM</p>
+      <h1>Temukan percakapan yang membentuk sebuah isu.</h1>
+      <p class="subtitle">Masukkan satu kalimat Bahasa Indonesia. Sistem mengirim query yang sama ke X dan Threads
+        secara paralel, mengintegrasikan data, menghitung similarity, lalu memetakan relasinya dalam graph.</p>
+    </section>
+
+    <section class="search-card" aria-label="Pencarian isu">
+      <div class="input-wrap">
+        <span class="search-icon">⌕</span>
+        <input id="query" type="text" maxlength="180" autocomplete="off"
+          value="Gerakan Penolakan Pancasila Sebagai Ideologi Negara"
+          placeholder="Contoh: Gerakan Penolakan Pancasila Sebagai Ideologi Negara" />
+        <span id="wordCount" class="word-count">0 / 20 kata</span>
+      </div>
+      <button id="searchButton" type="button">Cari isu <span>→</span></button>
+      <p id="validation" class="validation" role="alert"></p>
+      <div class="scope"><span>✓ Bahasa Indonesia</span><span>✓ Maks. 20 kata</span><span>✓ X &amp;
+          Threads</span><span>✓ Graph Construction</span></div>
+    </section>
+
+    <section id="processing" class="processing hidden" aria-live="polite">
+      <div class="processing-header">
+        <div class="processing-title-wrap">
+          <div class="loader"></div>
+          <div>
+            <strong id="processingTitle">Pipeline Pemrosesan Isu Multi-Platform</strong>
+            <p id="processingText">Mengorkestrasi tahapan crawler hingga penyusunan graph percakapan…</p>
+          </div>
+        </div>
+        <div class="processing-badge" id="processingBadge">0%</div>
+      </div>
+
+      <div class="pipeline-progress-track">
+        <div class="pipeline-progress-bar" id="pipelineProgressBar"></div>
+      </div>
+
+      <div class="pipeline-steps" id="pipelineSteps">
+        <div class="pipeline-step" id="step-1" data-state="pending">
+          <div class="step-num"><span class="step-label">1</span></div>
+          <div class="step-info">
+            <span class="step-title">Validasi &amp; Dispatch</span>
+            <span class="step-sub">Pemeriksaan bahasa &amp; topik</span>
+          </div>
+          <span class="step-status-tag">Menunggu</span>
+        </div>
+
+        <div class="pipeline-step" id="step-2" data-state="pending">
+          <div class="step-num"><span class="step-label">2</span></div>
+          <div class="step-info">
+            <span class="step-title">Parallel Crawling</span>
+            <span class="step-sub">Crawler X (Twitter) &amp; Threads</span>
+          </div>
+          <span class="step-status-tag">Menunggu</span>
+        </div>
+
+        <div class="pipeline-step" id="step-3" data-state="pending">
+          <div class="step-num"><span class="step-label">3</span></div>
+          <div class="step-info">
+            <span class="step-title">Standarisasi 9 Atribut</span>
+            <span class="step-sub">Normalisasi teks skripsi</span>
+          </div>
+          <span class="step-status-tag">Menunggu</span>
+        </div>
+
+        <div class="pipeline-step" id="step-4" data-state="pending">
+          <div class="step-num"><span class="step-label">4</span></div>
+          <div class="step-info">
+            <span class="step-title">Similarity Computation</span>
+            <span class="step-sub">Kalkulasi Cosine Similarity</span>
+          </div>
+          <span class="step-status-tag">Menunggu</span>
+        </div>
+
+        <div class="pipeline-step" id="step-5" data-state="pending">
+          <div class="step-num"><span class="step-label">5</span></div>
+          <div class="step-info">
+            <span class="step-title">Graph Construction</span>
+            <span class="step-sub">Pemetaan node-edge relasi</span>
+          </div>
+          <span class="step-status-tag">Menunggu</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="results" class="results hidden">
+      <div class="results-head">
+        <div>
+          <p class="eyebrow">HASIL PENCARIAN</p>
+          <h2 id="resultQuery">—</h2>
+        </div>
+        <button id="newSearch" class="secondary" type="button">Pencarian baru</button>
+      </div>
+
+      <div class="stat-grid">
+        <article class="stat"><span>POSTINGAN TERINTEGRASI</span><strong id="totalPosts">0</strong><small>dataset
+            terstandarisasi</small></article>
+        <article class="stat"><span>WAKTU PROSES</span><strong id="processTime">0.00 dtk</strong><small>crawler paralel
+            + similarity</small></article>
+        <article class="stat"><span>NODE GRAPH</span><strong id="nodeCount">0</strong><small>postingan /
+            percakapan</small></article>
+        <article class="stat"><span>EDGE GRAPH</span><strong id="edgeCount">0</strong><small>child → parent</small>
+        </article>
+      </div>
+
+      <div class="dashboard-grid">
+        <article class="panel graph-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">GRAPH CONSTRUCTION</p>
+              <h3>Relasi X ↔ Threads berdasarkan kesamaan kata</h3>
+            </div>
+            <div class="legend"><span><i class="x-dot"></i>X</span><span><i
+                  class="threads-dot"></i>Threads</span><span><i class="root-dot"></i>Root post</span></div>
+          </div>
+
+          <!-- Graph Filter Controls -->
+          <div class="graph-controls" id="graphControls">
+            <div class="graph-ctrl-group">
+              <span class="graph-ctrl-label">Tampilkan Edge:</span>
+              <button type="button" id="toggleConv" class="graph-filter-btn active" data-type="conversation" title="Toggle relasi percakapan (parent → reply)">
+                <span class="gc-dot conv-dot"></span>Percakapan
+              </button>
+              <button type="button" id="toggleSim" class="graph-filter-btn active" data-type="similarity" title="Toggle relasi kemiripan lintas platform">
+                <span class="gc-dot sim-dot"></span>Similarity
+              </button>
+            </div>
+            <div class="graph-ctrl-group">
+              <span class="graph-ctrl-label">Maks. Edge Similarity:</span>
+              <input type="range" id="edgeLimitSlider" min="10" max="200" step="10" value="60" class="graph-range" title="Jumlah edge similarity yang ditampilkan" />
+              <span class="graph-range-val" id="edgeLimitVal">60</span>
+            </div>
+            <div class="graph-ctrl-group">
+              <span class="graph-ctrl-label">Threshold Sim.:</span>
+              <input type="range" id="simThreshSlider" min="0" max="100" step="5" value="0" class="graph-range" title="Filter edge similarity minimum" />
+              <span class="graph-range-val" id="simThreshVal">0%</span>
+            </div>
+            <div class="graph-ctrl-group graph-ctrl-stats" id="graphCtrlStats">
+              <span class="gc-stat" id="gcStatNodes">— node</span>
+              <span class="gc-stat" id="gcStatEdges">— edge ditampilkan</span>
+            </div>
+          </div>
+          <div class="graph-wrap">
+            <div id="graph" class="graph" aria-label="Visualisasi graph"></div>
+            <div class="graph-zoom">
+              <button type="button" id="zoomIn" title="Perbesar">+</button>
+              <button type="button" id="zoomOut" title="Perkecil">−</button>
+              <button type="button" id="zoomReset" title="Atur ulang">⤶</button>
+            </div>
+            <div id="graphTooltip" class="graph-tooltip hidden"></div>
+            <p class="graph-hint">Scroll untuk zoom · seret untuk geser · arahkan kursor ke node untuk detail</p>
+          </div>
+          <p class="graph-note">Graph menampilkan dua jenis relasi: <strong>1) percakapan parent → reply / komentar /
+              balasan</strong> dan <strong>2) similarity X ↔ Threads berdasarkan kesamaan kata pada postingan, komentar,
+              dan reply dari kedua platform</strong>.</p>
+        </article>
+
+        <article class="panel platform-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">SUMBER DATA</p>
+              <h3>Hasil crawler</h3>
+            </div>
+          </div>
+          <div id="platformStats" class="platform-stats"></div>
+          <div class="metric-note"><span>Mesin similarity</span><strong id="engineInfo">—</strong></div>
+          <div class="metric-note"><span>Mode</span><strong id="modeInfo">—</strong></div>
+          <div class="metric-note"><span>Threshold</span><strong id="thresholdInfo">—</strong></div>
+        </article>
+      </div>
+
+      <article class="panel table-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">DATASET TERINTEGRASI</p>
+            <h3>Postingan hasil ranking</h3>
+          </div>
+          <div><span id="tableInfo" class="table-info"></span><button id="exportCsv" class="secondary" type="button"
+              title="Unduh dataset CSV">Unduh CSV</button></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>id_post</th>
+                <th>teks_postingan</th>
+                <th>tanggal_publikasi</th>
+                <th>username</th>
+                <th>jumlah_like</th>
+                <th>jumlah_share_repost</th>
+                <th>jumlah_komentar</th>
+                <th>link_postingan</th>
+                <th>platform</th>
+                <th>kata_kunci</th>
+                <th>jenis</th>
+                <th>reply_to</th>
+              </tr>
+            </thead>
+            <tbody id="postTable"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+  <footer>IsuLens · Sistem Pencarian Isu Media Sosial Multi-Platform</footer>
+  <script src="static/js/app.js"></script>
+</body>
+
+</html>
