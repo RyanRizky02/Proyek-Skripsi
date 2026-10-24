@@ -1,4 +1,3 @@
-
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -141,10 +140,17 @@ def normalize_post(item, platform, query):
 
 def build_x_input(query, keywords):
     search_terms = list(dict.fromkeys(
-        keyword.strip()
+        keyword.strip().replace('"', "")
         for keyword in keywords
         if isinstance(keyword, str) and keyword.strip()
     ))
+    search_terms = [term for term in search_terms if term]
+    if not search_terms:
+        search_terms = [query]
+
+    twitter_content = " OR ".join(
+        f'"{term}"' for term in search_terms
+    )
 
     return {
         "filter:blue_verified": False,
@@ -171,11 +177,8 @@ def build_x_input(query, keywords):
         "lang": "in",
         "maxItems": MAX_POSTS,
 
-        # List string: keyword expansion berlaku untuk X.
-        "searchTerms": search_terms,
-
-        # Wajib satu string, bukan list.
-        "twitterContent": query,
+        # Gabungkan variasi kata kunci dalam satu query X.
+        "twitterContent": twitter_content,
 
         "tweetIDs": [],
     }
@@ -659,7 +662,7 @@ def search_social_media(query):
         )
 
         # Jika salah satu actor gagal, exception akan diteruskan.
-        x_raw = x_future.result()
+        x_raw = x_future.result()[:MAX_POSTS]
         threads_raw = threads_future.result()
 
         print("[THREADS] RAW COUNT:", len(threads_raw))
