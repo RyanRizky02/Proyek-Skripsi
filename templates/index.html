@@ -16,7 +16,10 @@
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-mark">⌘</span><span>Isu<span>Lens</span></span></div>
-    <div class="topbar-note"><span class="status-dot"></span> Sistem pencarian aktif</div>
+    <div class="topbar-note" role="status" aria-live="polite">
+      <span id="backendStatusDot" class="status-dot" data-state="checking"></span>
+      <span id="backendStatusText">Memeriksa backend…</span>
+    </div>
   </header>
 
   <main class="shell">
@@ -33,11 +36,11 @@
         <input id="query" type="text" maxlength="180" autocomplete="off"
           value="Gerakan Penolakan Pancasila Sebagai Ideologi Negara"
           placeholder="Contoh: Gerakan Penolakan Pancasila Sebagai Ideologi Negara" />
-        <span id="wordCount" class="word-count">0 / 20 kata</span>
+        <span id="wordCount" class="word-count">0 / 8 kata</span>
       </div>
       <button id="searchButton" type="button">Cari isu <span>→</span></button>
       <p id="validation" class="validation" role="alert"></p>
-      <div class="scope"><span>✓ Bahasa Indonesia</span><span>✓ Maks. 20 kata</span><span>✓ X &amp;
+      <div class="scope"><span>✓ Kata kunci isu</span><span>✓ Maks. 8 kata</span><span>✓ X &amp;
           Threads</span><span>✓ Graph Construction</span></div>
     </section>
 
@@ -61,8 +64,8 @@
         <div class="pipeline-step" id="step-1" data-state="pending">
           <div class="step-num"><span class="step-label">1</span></div>
           <div class="step-info">
-            <span class="step-title">Validasi &amp; Dispatch</span>
-            <span class="step-sub">Pemeriksaan bahasa &amp; topik</span>
+            <span class="step-title">Validasi Query</span>
+            <span class="step-sub">Pengecekan input dan batas 8 kata</span>
           </div>
           <span class="step-status-tag">Menunggu</span>
         </div>
@@ -79,8 +82,8 @@
         <div class="pipeline-step" id="step-3" data-state="pending">
           <div class="step-num"><span class="step-label">3</span></div>
           <div class="step-info">
-            <span class="step-title">Standarisasi 9 Atribut</span>
-            <span class="step-sub">Normalisasi teks skripsi</span>
+            <span class="step-title">Normalisasi Postingan</span>
+            <span class="step-sub">Penyeragaman data hasil crawler</span>
           </div>
           <span class="step-status-tag">Menunggu</span>
         </div>
@@ -115,13 +118,11 @@
       </div>
 
       <div class="stat-grid">
-        <article class="stat"><span>POSTINGAN TERINTEGRASI</span><strong id="totalPosts">0</strong><small>dataset
-            terstandarisasi</small></article>
-        <article class="stat"><span>WAKTU PROSES</span><strong id="processTime">0.00 dtk</strong><small>crawler paralel
-            + similarity</small></article>
+        <article class="stat"><span>POSTINGAN RELEVAN</span><strong id="totalPosts">0</strong><small>hasil dari API pencarian</small></article>
+        <article class="stat"><span>WAKTU PERMINTAAN API</span><strong id="processTime">0.00 dtk</strong><small>waktu respons endpoint</small></article>
         <article class="stat"><span>NODE GRAPH</span><strong id="nodeCount">0</strong><small>postingan /
             percakapan</small></article>
-        <article class="stat"><span>EDGE GRAPH</span><strong id="edgeCount">0</strong><small>child → parent</small>
+        <article class="stat"><span>EDGE GRAPH</span><strong id="edgeCount">0</strong><small>similarity &amp; percakapan</small>
         </article>
       </div>
 
@@ -130,7 +131,7 @@
           <div class="panel-heading">
             <div>
               <p class="eyebrow">GRAPH CONSTRUCTION</p>
-              <h3>Relasi X ↔ Threads berdasarkan kesamaan kata</h3>
+              <h3>Relasi similarity dan percakapan dari backend</h3>
             </div>
             <div class="legend"><span><i class="x-dot"></i>X</span><span><i
                   class="threads-dot"></i>Threads</span><span><i class="root-dot"></i>Root post</span></div>
@@ -185,9 +186,9 @@
             </div>
           </div>
           <div id="platformStats" class="platform-stats"></div>
-          <div class="metric-note"><span>Mesin similarity</span><strong id="engineInfo">—</strong></div>
-          <div class="metric-note"><span>Mode</span><strong id="modeInfo">—</strong></div>
-          <div class="metric-note"><span>Threshold</span><strong id="thresholdInfo">—</strong></div>
+          <div class="metric-note"><span>Post X terambil</span><strong id="xCount">0</strong></div>
+          <div class="metric-note"><span>Post Threads terambil</span><strong id="threadsCount">0</strong></div>
+          <div class="metric-note"><span>Post relevan disimpan</span><strong id="savedCount">0</strong></div>
         </article>
       </div>
 

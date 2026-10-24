@@ -6,36 +6,21 @@ const processing = document.querySelector('#processing');
 const results = document.querySelector('#results');
 let latestPosts = [];
 
-const issueTerms = ['radikal', 'radikalisme', 'pancasila', 'ideologi', 'kolonial', 'penjajahan', 'imperialisme'];
-
-const englishIndicators = new Set([
-    'the', 'is', 'are', 'was', 'were', 'of', 'this', 'that', 'these', 'those',
-    'with', 'for', 'from', 'about', 'in', 'on', 'at', 'by', 'to', 'not', 'no',
-    'we', 'they', 'you', 'he', 'she', 'it', 'have', 'has', 'had', 'do', 'does', 'did',
-    'what', 'when', 'where', 'why', 'how', 'an', 'a', 'as', 'be', 'been', 'their', 'our', 'my', 'your',
-    'ideology', 'radicalism', 'colonialism', 'state', 'era', 'movement', 'against', 'rejection', 'society',
-    'government', 'nation', 'country', 'world', 'people', 'impact', 'issue', 'social', 'media'
-]);
-
-const indonesianHints = new Set([
-    'dan', 'yang', 'ini', 'itu', 'dengan', 'untuk', 'dari', 'pada', 'sebagai', 'adalah', 'negara',
-    'terhadap', 'penolakan', 'gerakan', 'masyarakat', 'pemerintah', 'ideologi', 'pancasila', 'radikal',
-    'radikalisme', 'kolonial', 'kolonialisme', 'penjajahan', 'imperialisme', 'dalam', 'oleh', 'tentang',
-    'di', 'ke', 'atau', 'bangsa', 'indonesia', 'paham', 'isu', 'percakapan', 'sikap', 'wacana', 'kedaulatan'
-]);
-
 function words(value) {
     return value.trim().split(/\s+/).filter(Boolean);
 }
 
 function updateCount() {
-    count.textContent = `${words(queryInput.value).length} / 20 kata`;
+    count.textContent = `${words(queryInput.value).length} / 8 kata`;
     validation.textContent = '';
 }
 
 queryInput.addEventListener('input', updateCount);
 queryInput.addEventListener('keydown', event => {
-    if (event.key === 'Enter') startSearch();
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        startSearch();
+    }
 });
 
 document.querySelector('#newSearch').addEventListener('click', () => {
@@ -44,67 +29,76 @@ document.querySelector('#newSearch').addEventListener('click', () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
-document.querySelector('#exportCsv').addEventListener('click', async () => {
+const exportButton = document.querySelector('#exportCsv');
+exportButton.disabled = true;
+exportButton.addEventListener('click', () => {
     if (!latestPosts.length) return;
-    const response = await fetch('/api/export-csv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ posts: latestPosts })
-    });
-    if (!response.ok) return;
+
+    const columns = [
+        ['id_post', 'id_post'],
+        ['teks_postingan', 'teks_postingan'],
+        ['tanggal_publikasi', 'tanggal_publikasi'],
+        ['username', 'username'],
+        ['jumlah_like', 'jumlah_like'],
+        ['jumlah_share_repost', 'jumlah_share_repost'],
+        ['jumlah_komentar', 'jumlah_komentar'],
+        ['link_postingan', 'link_postingan'],
+        ['platform', 'platform'],
+        ['kata_kunci', 'kata_kunci'],
+        ['jenis', 'jenis'],
+        ['reply_to', 'reply_to']
+    ];
+    const quoteCsv = value => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const rows = [
+        columns.map(([heading]) => quoteCsv(heading)),
+        ...latestPosts.map(post => columns.map(([, key]) => quoteCsv(post[key])))
+    ];
+    const blob = new Blob(
+        [`\uFEFF${rows.map(row => row.join(',')).join('\r\n')}`],
+        { type: 'text/csv;charset=utf-8' }
+    );
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(await response.blob());
+    link.href = url;
     link.download = 'dataset_terintegrasi.csv';
     link.click();
-    URL.revokeObjectURL(link.href);
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
 });
 
 button.addEventListener('click', startSearch);
-
-const loadLatestBtn = document.querySelector('#loadLatestButton');
-if (loadLatestBtn) {
-    loadLatestBtn.addEventListener('click', async () => {
-        try {
-            loadLatestBtn.disabled = true;
-            loadLatestBtn.textContent = 'Memuat…';
-            const res = await fetch('/api/latest-result');
-            if (!res.ok) throw new Error('Belum ada riwayat hasil pencarian.');
-            const payload = await res.json();
-            renderResults(payload);
-            results.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } catch (err) {
-            alert(err.message);
-        } finally {
-            loadLatestBtn.disabled = false;
-            loadLatestBtn.textContent = 'Hasil Terakhir ↺';
-        }
-    });
-}
 
 function validate(q) {
     const list = words(q);
     if (!q.trim()) return 'Masukkan kalimat pencarian terlebih dahulu.';
     if (list.length > 8) return 'Input melebihi batas 8 kata.';
-    if (!/[a-zA-Z]/.test(q)) return 'Input harus menggunakan Bahasa Indonesia.';
-
-    const cleanTokens = list.map(w => w.toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
-    const englishHits = cleanTokens.filter(w => englishIndicators.has(w)).length;
-    const indoHits = cleanTokens.filter(w => indonesianHints.has(w)).length;
-
-    if (englishHits > 0 && (indoHits === 0 || englishHits >= cleanTokens.length / 2)) {
-        return 'Input harus menggunakan Bahasa Indonesia.';
-    }
-
-    if (!issueTerms.some(term => q.toLowerCase().includes(term))) {
-        return 'Topik belum termasuk ruang lingkup: radikalisme, penentangan ideologi negara, atau kolonialisme.';
-    }
     return '';
 }
 
+async function checkBackendStatus() {
+    const dot = document.querySelector('#backendStatusDot');
+    const text = document.querySelector('#backendStatusText');
+    dot.dataset.state = 'checking';
+    text.textContent = 'Memeriksa backend…';
+
+    try {
+        const response = await fetch('/api/status');
+        const payload = await response.json();
+        if (!response.ok || payload.success !== true) {
+            throw new Error(payload.message || 'Backend tidak merespons dengan benar.');
+        }
+        dot.dataset.state = 'online';
+        text.textContent = `${payload.application || 'Backend'} berjalan`;
+    } catch (error) {
+        dot.dataset.state = 'offline';
+        text.textContent = 'Backend tidak terhubung';
+        console.error('Pemeriksaan status backend gagal:', error);
+    }
+}
+
 const pipelineStepsConfig = [
-    { id: 1, title: 'Validasi & Query Dispatch', activeDesc: 'Validasi kalimat & orkestrasi crawler…', doneDesc: 'Pemeriksaan bahasa & topik valid' },
+    { id: 1, title: 'Validasi Query', activeDesc: 'Memeriksa input sebelum dikirim ke backend…', doneDesc: 'Query dikirim ke backend' },
     { id: 2, title: 'Parallel Crawling', activeDesc: 'Mengambil data postingan X & Threads secara paralel…', doneDesc: 'Crawling X & Threads selesai' },
-    { id: 3, title: 'Standarisasi 9 Atribut', activeDesc: 'Normalisasi teks & integrasi skema skripsi…', doneDesc: '9 Atribut standar terintegrasi' },
+    { id: 3, title: 'Normalisasi Postingan', activeDesc: 'Menyeragamkan data hasil crawler…', doneDesc: 'Data postingan dinormalisasi' },
     { id: 4, title: 'Similarity Computation', activeDesc: 'Menghitung cosine similarity antar platform…', doneDesc: 'Kalkulasi kesamaan kata selesai' },
     { id: 5, title: 'Graph Construction', activeDesc: 'Membangun relasi node-edge & percakapan…', doneDesc: 'Struktur graf berhasil dibangun' }
 ];
@@ -175,20 +169,8 @@ async function startSearch() {
     processing.classList.remove('hidden');
     results.classList.add('hidden');
 
-    // Step 1: Validasi
-    updatePipelineProgress(1, 'active', 15);
-    await wait(180);
-
-    // Step 2: Parallel Crawling
-    updatePipelineProgress(2, 'active', 30);
-
-    let currentCrawlingPct = 30;
-    const crawlInterval = setInterval(() => {
-        if (currentCrawlingPct < 60) {
-            currentCrawlingPct += 3;
-            updatePipelineProgress(2, 'active', currentCrawlingPct);
-        }
-    }, 400);
+    updatePipelineProgress(2, 'active', 35);
+    const startedAt = performance.now();
 
     try {
         const response = await fetch('/api/search', {
@@ -197,51 +179,40 @@ async function startSearch() {
             body: JSON.stringify({ query: q })
         });
 
-        clearInterval(crawlInterval);
-
-        const payload = await response.json();
-        if (!response.ok) {
-            updatePipelineProgress(2, 'error', currentCrawlingPct);
-            throw new Error(payload.error || 'Pencarian gagal diproses.');
+        let payload;
+        try {
+            payload = await response.json();
+        } catch {
+            throw new Error('Backend mengirim respons yang bukan JSON valid.');
+        }
+        if (!response.ok || payload.success !== true) {
+            throw new Error(payload.message || 'Pencarian gagal diproses.');
+        }
+        if (!Array.isArray(payload.results) ||
+            !payload.graph ||
+            !Array.isArray(payload.graph.nodes) ||
+            !Array.isArray(payload.graph.edges)) {
+            throw new Error('Format respons pencarian dari backend tidak valid.');
         }
 
-        // Step 3: Standarisasi 9 Atribut
-        updatePipelineProgress(3, 'active', 72);
-        await wait(220);
-
-        // Step 4: Similarity Computation
-        updatePipelineProgress(4, 'active', 88);
-        await wait(220);
-
-        // Step 5: Graph Construction
-        updatePipelineProgress(5, 'active', 98);
-        await wait(240);
-
-        // All steps completed (100%)
         updatePipelineProgress(6, 'completed', 100);
         const title = document.querySelector('#processingTitle');
         const text = document.querySelector('#processingText');
         if (title) title.textContent = 'Pemrosesan Selesai';
-        if (text) text.textContent = 'Dataset terintegrasi & graph siap divisualisasikan.';
-        await wait(300);
-
-        renderResults(payload);
+        if (text) text.textContent = 'Backend mengembalikan hasil pencarian dan graph.';
+        renderResults(payload, performance.now() - startedAt);
     } catch (error) {
-        clearInterval(crawlInterval);
+        updatePipelineProgress(2, 'error', 35);
         validation.textContent = error.message;
         results.classList.add('hidden');
+        console.error('Pencarian backend gagal:', error);
     } finally {
-        clearInterval(crawlInterval);
         processing.classList.add('hidden');
         button.disabled = false;
         if (!results.classList.contains('hidden')) {
             results.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }
-}
-
-function wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function escapeHtml(value) {
@@ -262,14 +233,14 @@ function formatDate(value) {
 
 function normalizeGraphData(graph) {
     return {
-        nodes: (graph?.nodes || []).map(node => ({
+        nodes: graph.nodes.map(node => ({
             ...node,
-            id: node.id || `${node.platform}:${node.post_id}`,
+            id: node.id || node.node_id || `${node.platform}:${node.post_id}`,
             similarity_score: Number(node.similarity_score ?? node.similarity ?? 0)
         })),
-        edges: (graph?.edges || []).map(edge => ({
+        edges: graph.edges.map(edge => ({
             ...edge,
-            edge_type: (edge.edge_type || edge.type) === 'reply'
+            edge_type: ['reply', 'conversation'].includes(edge.edge_type || edge.type)
                 ? 'conversation'
                 : (edge.edge_type || edge.type),
             similarity: Number(edge.similarity ?? edge.weight ?? 0)
@@ -277,23 +248,44 @@ function normalizeGraphData(graph) {
     };
 }
 
-function renderResults(payload) {
-    const posts = payload.posts || [];
+function normalizePost(post) {
+    const interactionCount = ['likes', 'reposts', 'replies']
+        .reduce((total, key) => total + (Number(post[key]) || 0), 0);
+    return {
+        ...post,
+        id_post: post.post_id || post.node_id || '',
+        teks_postingan: post.text || '',
+        tanggal_publikasi: post.created_at,
+        jumlah_like: post.likes,
+        jumlah_share_repost: post.reposts,
+        jumlah_komentar: post.replies,
+        link_postingan: post.url,
+        kata_kunci: post.query,
+        jenis: post.is_reply ? 'reply' : 'postingan',
+        reply_to: post.parent_post_id,
+        jumlah_interaksi: interactionCount
+    };
+}
+
+function renderResults(payload, elapsedMs) {
+    const posts = payload.results.map(normalizePost);
     latestPosts = posts;
     const graph = normalizeGraphData(payload.graph);
-    const x = posts.filter(p => p.platform === 'X');
-    const t = posts.filter(p => p.platform === 'Threads');
+    const x = posts.filter(post => post.platform === 'X');
+    const t = posts.filter(post => post.platform === 'Threads');
 
     results.classList.remove('hidden');
-    document.querySelector('#resultQuery').textContent = `"${payload.query}"`;
+    document.querySelector('#resultQuery').textContent = `"${payload.query || ''}"`;
     document.querySelector('#totalPosts').textContent = posts.length;
-    document.querySelector('#processTime').textContent = `${((payload.process_time_ms || 0) / 1000).toFixed(2)} dtk`;
+    document.querySelector('#processTime').textContent = `${(elapsedMs / 1000).toFixed(2)} dtk`;
     document.querySelector('#nodeCount').textContent = graph.nodes.length;
     document.querySelector('#edgeCount').textContent = graph.edges.length;
-    document.querySelector('#tableInfo').textContent = `${posts.length} data | 12 atribut dataset`;
-    document.querySelector('#engineInfo').textContent = payload.similarity_engine || 'ΓÇö';
-    document.querySelector('#modeInfo').textContent = payload.mode === 'apify' ? 'Apify' : 'Demo';
-    document.querySelector('#thresholdInfo').textContent = payload.summary?.threshold ?? 'ΓÇö';
+    document.querySelector('#tableInfo').textContent =
+        `${posts.length} postingan relevan · X ${payload.x_count ?? x.length} · Threads ${payload.threads_count ?? t.length}`;
+    document.querySelector('#xCount').textContent = payload.x_count ?? x.length;
+    document.querySelector('#threadsCount').textContent = payload.threads_count ?? t.length;
+    document.querySelector('#savedCount').textContent = payload.saved_count ?? posts.length;
+    exportButton.disabled = posts.length === 0;
 
     renderPlatforms(x, t);
     renderTable(posts);
@@ -302,8 +294,8 @@ function renderResults(payload) {
 
 function renderPlatforms(x, t) {
     document.querySelector('#platformStats').innerHTML = [
-        ['x', 'X', 'Crawler X', x.length, x.reduce((sum, p) => sum + Number(p.jumlah_interaksi || 0), 0)],
-        ['threads', '@', 'Threads', t.length, t.reduce((sum, p) => sum + Number(p.jumlah_interaksi || 0), 0)]
+        ['x', 'X', 'Crawler X', x.length, x.reduce((sum, post) => sum + post.jumlah_interaksi, 0)],
+        ['threads', '@', 'Threads', t.length, t.reduce((sum, post) => sum + post.jumlah_interaksi, 0)]
     ].map(([c, logo, name, n, interactions]) => `
     <div class="platform-row">
       <div class="platform-logo ${c}">${logo}</div>
@@ -314,7 +306,8 @@ function renderPlatforms(x, t) {
 }
 
 function renderTable(posts) {
-    document.querySelector('#postTable').innerHTML = posts.map(post => `
+    const table = document.querySelector('#postTable');
+    table.innerHTML = posts.length ? posts.map(post => `
     <tr>
       <td class="post-id">${escapeHtml(post.id_post)}</td>
       <td class="post-text">${escapeHtml(post.teks_postingan)}</td>
@@ -329,7 +322,7 @@ function renderTable(posts) {
       <td>${escapeHtml(post.jenis || (post.parent_post_id ? 'reply' : 'postingan'))}</td>
       <td>${escapeHtml(post.reply_to || post.parent_post_id || '-')}</td>
     </tr>
-  `).join('');
+  `).join('') : '<tr><td class="table-empty" colspan="12">Backend tidak mengembalikan postingan relevan untuk pencarian ini.</td></tr>';
 }
 
 /* ---------- Cluster layout: X (kiri) · Threads (kanan) dengan force-directed ---------- */
@@ -426,6 +419,7 @@ function computeForceLayout(nodes, edges, width, height) {
 
 /* --- State filter graph (dipakai oleh renderGraph & controls) --- */
 let _graphState = null;
+let graphInteractionController = null;
 
 function applyGraphFilters() {
     if (!_graphState) return;
@@ -478,14 +472,16 @@ function renderGraph(graph, posts) {
     const container = document.querySelector('#graph');
     const nodes = graph.nodes || [];
     const allEdges = graph.edges || [];
+    _graphState = { allEdges, nodes, posts };
 
     if (!nodes.length) {
         container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#7d8dae;font-size:13px">Tidak ada node untuk divisualisasikan.</div>`;
+        graphInteractionController?.abort();
+        graphInteractionController = null;
+        wireGraphControls();
+        applyGraphFilters();
         return;
     }
-
-    // Simpan state untuk filter interaktif
-    _graphState = { allEdges, nodes, posts };
 
     // Hitung edge awal (sebelum render, untuk slider limit max)
     const totalSim = allEdges.filter(e => e.edge_type !== 'conversation').length;
@@ -665,6 +661,9 @@ function wireGraphControls() {
 
 /* ---------- Interaksi: zoom, pan, hover highlight, tooltip node & edge ---------- */
 function wireGraphInteractions(container, postById = {}) {
+    graphInteractionController?.abort();
+    graphInteractionController = new AbortController();
+    const { signal } = graphInteractionController;
     const svg = container.querySelector('#graphSvg');
     const viewport = container.querySelector('#graphViewport');
     const tooltip = document.querySelector('#graphTooltip');
@@ -702,12 +701,12 @@ function wireGraphInteractions(container, postById = {}) {
         ty += ((event.clientY - lastY) / rect.height) * 580;
         lastX = event.clientX; lastY = event.clientY;
         applyTransform();
-    });
-    window.addEventListener('mouseup', () => { dragging = false; });
+    }, { signal });
+    window.addEventListener('mouseup', () => { dragging = false; }, { signal });
 
-    document.querySelector('#zoomIn')?.addEventListener('click', () => zoomBy(1.25));
-    document.querySelector('#zoomOut')?.addEventListener('click', () => zoomBy(0.8));
-    document.querySelector('#zoomReset')?.addEventListener('click', () => { scale = 1; tx = 0; ty = 0; applyTransform(); });
+    document.querySelector('#zoomIn')?.addEventListener('click', () => zoomBy(1.25), { signal });
+    document.querySelector('#zoomOut')?.addEventListener('click', () => zoomBy(0.8), { signal });
+    document.querySelector('#zoomReset')?.addEventListener('click', () => { scale = 1; tx = 0; ty = 0; applyTransform(); }, { signal });
 
     const nodeGroups = container.querySelectorAll('.node');
     const edgeGroups = container.querySelectorAll('.edge-group');
@@ -895,3 +894,4 @@ function wireGraphInteractions(container, postById = {}) {
 }
 
 updateCount();
+checkBackendStatus();
