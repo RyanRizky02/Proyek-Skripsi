@@ -546,10 +546,11 @@ function renderGraph(graph, posts) {
         const baseOpacity = isConversation ? 0.45 : Math.max(0.12, 0.12 + simScore * 0.4);
         const stroke = isConversation ? '#94a3b8' : 'url(#edgeGrad)';
         const dash = isConversation ? '4 4' : 'none';
+        const markerEnd = isConversation ? 'url(#arrow)' : 'none';
         return `
       <g class="edge-group" data-source="${escapeHtml(edge.source)}" data-target="${escapeHtml(edge.target)}" data-edge-type="${escapeHtml(edge.edge_type || '')}" data-similarity="${Number(simScore)}">
         <path class="edge-hit" d="M${a.x},${a.y} Q${cx},${cyp} ${b.x},${b.y}" fill="none" stroke="transparent" stroke-width="16" style="cursor:pointer;pointer-events:stroke;"/>
-        <path class="edge" d="M${a.x},${a.y} Q${cx},${cyp} ${b.x},${b.y}" fill="none" stroke="${stroke}" stroke-width="${isConversation ? '1.2' : '1.6'}" opacity="${baseOpacity}" marker-end="url(#arrow)" stroke-dasharray="${dash}" style="pointer-events:none;"/>
+        <path class="edge" d="M${a.x},${a.y} Q${cx},${cyp} ${b.x},${b.y}" fill="none" stroke="${stroke}" stroke-width="${isConversation ? '1.2' : '1.6'}" opacity="${baseOpacity}" marker-end="${markerEnd}" stroke-dasharray="${dash}" style="pointer-events:none;"/>
       </g>
     `;
     }).join('');

@@ -391,18 +391,9 @@ def build_similarity_edges(posts, threshold=0.25):
             pair_scores.append((score, x_post, threads_post))
 
             if score >= threshold:
-                # Edge X -> Threads
                 edges.append({
                     "source": x_post["node_id"],
                     "target": threads_post["node_id"],
-                    "type": "similarity",
-                    "weight": round(score, 4),
-                })
-
-                # Edge Threads -> X
-                edges.append({
-                    "source": threads_post["node_id"],
-                    "target": x_post["node_id"],
                     "type": "similarity",
                     "weight": round(score, 4),
                 })
@@ -757,9 +748,30 @@ def search_social_media(query):
         )
     ]
 
+    MAX_REPLIES_PER_POST = 5
+    graph_relevant_posts = []
+    reply_counts = {}
+
+    for post in relevant_posts:
+        parent_id = post.get("parent_post_id")
+        if not post.get("is_reply") or not parent_id:
+            graph_relevant_posts.append(post)
+            continue
+
+        parent_key = (
+            str(post.get("platform", "")),
+            str(parent_id),
+        )
+        if reply_counts.get(parent_key, 0) >= MAX_REPLIES_PER_POST:
+            continue
+
+        reply_counts[parent_key] = reply_counts.get(parent_key, 0) + 1
+        graph_relevant_posts.append(post)
+
     print("\n=== DEBUG GRAPH CONSTRUCTION ===")
     print("Total postingan hasil crawling:", len(posts))
     print("Postingan relevan:", len(relevant_posts))
+    print("Postingan relevan untuk graph:", len(graph_relevant_posts))
     print(
         "Postingan X relevan:",
         sum(
@@ -777,18 +789,18 @@ def search_social_media(query):
 
     # 2. Buat similarity edge lintas platform.
     similarity_edges = build_similarity_edges(
-        relevant_posts,
+        graph_relevant_posts,
         threshold=0.25,
     )
 
     # 3. Nonaktifkan reply edge child -> parent.
     reply_edges, missing_parents, parent_context_posts = build_reply_edges(
-    relevant_posts,
+        graph_relevant_posts,
         all_stored_posts=current_data["posts"],
     )
 
     # 4. Buat node hanya dari postingan relevan.
-    graph_posts = deduplicate(relevant_posts + parent_context_posts)
+    graph_posts = deduplicate(graph_relevant_posts + parent_context_posts)
 
     nodes = [
         {
@@ -811,7 +823,7 @@ def search_social_media(query):
         "edges": graph_edges,
         "stats": {
             "node_count": len(nodes),
-            "relevant_node_count": len(relevant_posts),
+            "relevant_node_count": len(graph_relevant_posts),
             "parent_context_node_count": len(parent_context_posts),
             "similarity_edge_count": len(similarity_edges),
             "reply_edge_count": len(reply_edges),
